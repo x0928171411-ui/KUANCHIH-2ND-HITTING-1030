@@ -241,6 +241,7 @@ function emptyRead(choice: HandednessChoice, frameCount: number, warnings: strin
     highlightRawLeft: handedness === "right",
     imageSwingSign: 1,
     leadOnImageLeft: false,
+    contactSource: "auto",
     phases: { load: 0, landing: 0, contact: 0, follow: 0 },
     metrics: emptyMetrics("bh"),
     validFrames: 0,
@@ -275,8 +276,15 @@ function chooseSpace(frames: PoseFrame[]): Space {
  * Read one swing.
  * Handedness does not rerun pose detection. On a clear clip it locks the lead
  * side. On a muddy clip it also chooses which foot counts as the front foot.
+ * `contactTime` is a video timestamp the coach marked. Metrics that sit on the
+ * hit (front knee, time to contact) use that frame instead of the hand-speed peak.
  */
-export function interpretSwing(input: PoseFrame[], choice: HandednessChoice, aspect = 16 / 9): SwingRead {
+export function interpretSwing(
+  input: PoseFrame[],
+  choice: HandednessChoice,
+  aspect = 16 / 9,
+  contactTime: number | null = null,
+): SwingRead {
   const safeAspect = Number.isFinite(aspect) && aspect > 0.3 ? aspect : 16 / 9;
   const frames = smooth(stabilize(input));
   const validFrames = frames.filter((frame) => hasBody(frame.lm)).length;
@@ -323,7 +331,10 @@ export function interpretSwing(input: PoseFrame[], choice: HandednessChoice, asp
     const mid = window[Math.floor(window.length / 2)] ?? item.s;
     return { i: item.i, s: mid };
   });
-  const contact = pool.reduce((best, item) => (item.s > best.s ? item : best)).i;
+  const autoContact = pool.reduce((best, item) => (item.s > best.s ? item : best)).i;
+  const manual = typeof contactTime === "number" && Number.isFinite(contactTime);
+  const contactClock = manual ? Math.max(0, contactTime) : frames[autoContact].t;
+  const contact = manual ? indexAtOrBefore(frames, contactClock) : autoContact;
 
   const before = Math.max(0, contact - 3);
   const after = Math.min(frames.length - 1, contact + 2);
@@ -482,7 +493,7 @@ export function interpretSwing(input: PoseFrame[], choice: HandednessChoice, asp
   let follow = contact;
   let maxWrist = -Infinity;
   for (let index = contact; index < frames.length; index++) {
-    if (frames[index].t > frames[contact].t + 0.6 && index > contact) break;
+    if (frames[index].t > contactClock + 0.6 && index > contact) break;
     const value = wristProj(index);
     if (value == null) continue;
     if (value >= maxWrist) {
@@ -491,7 +502,7 @@ export function interpretSwing(input: PoseFrame[], choice: HandednessChoice, asp
     }
   }
   if (follow <= contact) {
-    const target = frames[contact].t + 0.28;
+    const target = contactClock + 0.28;
     let best = Math.min(frames.length - 1, contact + 1);
     let bestDistance = Infinity;
     for (let index = contact + 1; index < frames.length; index++) {
@@ -504,11 +515,17 @@ export function interpretSwing(input: PoseFrame[], choice: HandednessChoice, asp
     follow = best;
   }
 
+  let loadT = frames[load].t;
+  let landingT = frames[landing].t;
+  let followT = frames[follow].t;
+  if (landingT > contactClock) landingT = contactClock;
+  if (loadT > landingT) loadT = landingT;
+  if (followT <= contactClock) followT = contactClock + 1 / 30;
   const phases: Record<PhaseId, number> = {
-    load: frames[load].t,
-    landing: frames[landing].t,
-    contact: frames[contact].t,
-    follow: frames[follow].t,
+    load: loadT,
+    landing: landingT,
+    contact: contactClock,
+    follow: followT,
   };
 
   const planted = series[landing];
@@ -577,12 +594,21 @@ export function interpretSwing(input: PoseFrame[], choice: HandednessChoice, asp
     highlightRawLeft,
     imageSwingSign,
     leadOnImageLeft,
+    contactSource: manual ? "manual" : "auto",
     phases,
     metrics,
     validFrames,
     frameCount: input.length,
     warnings,
   };
+}
+
+function indexAtOrBefore(frames: PoseFrame[], time: number) {
+  let best = 0;
+  for (let index = 0; index < frames.length; index++) {
+    if (frames[index].t <= time + 1e-4) best = index;
+  }
+  return best;
 }
 
 function wristImageX(frame: PoseFrame) {

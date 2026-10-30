@@ -29,7 +29,7 @@ export const MODEL_OPTIONS: readonly { value: ModelQuality; label: string; note:
 export const PHASES: readonly { id: PhaseId; label: string; hint: string; color: string }[] = [
   { id: "load", label: "啟動", hint: "手收到最後面", color: "#f0c36a" },
   { id: "landing", label: "著地", hint: "前腳踩穩", color: "#3edcf6" },
-  { id: "contact", label: "擊球", hint: "手速最快", color: "#f4f8fb" },
+  { id: "contact", label: "擊球", hint: "球棒碰到球", color: "#f4f8fb" },
   { id: "follow", label: "收棒", hint: "手送到最前面", color: "#ff8a3c" },
 ];
 

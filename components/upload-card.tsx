@@ -11,11 +11,13 @@ type Props = {
   title: string;
   hint: string;
   rate: PlaybackRate;
+  contact: number | null;
+  onContact: (time: number | null) => void;
   onClear: () => void;
   onSlot: (slot: VideoSlot) => void;
 };
 
-export function UploadCard({ tone, title, hint, rate, onClear, onSlot }: Props) {
+export function UploadCard({ tone, title, hint, rate, contact, onContact, onClear, onSlot }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const nameRef = useRef("");
@@ -174,6 +176,11 @@ export function UploadCard({ tone, title, hint, rate, onClear, onSlot }: Props) 
                 {rate}×
               </span>
             ) : null}
+            {contact != null && Math.abs(time - contact) < 1 / 40 ? (
+              <span className="absolute top-2 right-2 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-[#042029]">
+                擊球
+              </span>
+            ) : null}
           </div>
           <p className="truncate text-xs text-muted" title={name}>
             {name}
@@ -192,11 +199,41 @@ export function UploadCard({ tone, title, hint, rate, onClear, onSlot }: Props) 
             <Button type="button" variant="outline" size="sm" onClick={() => step(1)} disabled={!meta}>
               下一幀
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!meta}
+              onClick={() => {
+                const video = videoRef.current;
+                if (!video) return;
+                video.pause();
+                setPlaying(false);
+                onContact(video.currentTime);
+              }}
+              className={
+                contact != null && Math.abs(time - contact) < 1 / 40
+                  ? "border-amber bg-amber text-[#2a1d05] hover:bg-[#ffd78a]"
+                  : undefined
+              }
+            >
+              這幀是擊球
+            </Button>
+            {contact != null ? (
+              <Button type="button" variant="quiet" size="sm" onClick={() => onContact(null)}>
+                改回自動
+              </Button>
+            ) : null}
             <span className="ml-auto font-mono text-xs tabular-nums text-muted">
               {formatClock(time)}
               {meta ? ` / ${formatClock(meta.duration)}` : ""}
             </span>
           </div>
+          {contact != null ? (
+            <p className="text-xs text-amber">擊球標在 {formatClock(contact)}。這格會留下來，換邊也不用重跑。</p>
+          ) : (
+            <p className="text-xs text-muted">停在球棒碰到球的那一格，按「這幀是擊球」。沒標的話就用自動判斷。</p>
+          )}
           {rateNote ? <p className="text-xs text-amber">{rateNote}</p> : null}
         </div>
       ) : (

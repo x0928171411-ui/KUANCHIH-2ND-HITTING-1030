@@ -19,6 +19,7 @@ export function BlastPanel({ best, current }: { best: SwingRead | null; current:
       ) : (
         <>
           <p className="mt-3 text-sm leading-6 text-white">{comparison.summary}</p>
+          {best && current ? <ContactNote best={best} current={current} /> : null}
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[520px] border-collapse text-left text-sm">
               <thead>
@@ -47,4 +48,19 @@ export function BlastPanel({ best, current }: { best: SwingRead | null; current:
       )}
     </section>
   );
+}
+
+function ContactNote({ best, current }: { best: SwingRead; current: SwingRead }) {
+  const bestManual = best.contactSource === "manual";
+  const currentManual = current.contactSource === "manual";
+  const text =
+    bestManual && currentManual
+      ? "兩支的擊球都是你標的那一幀。前膝和啟動到擊球跟著這一幀重算。"
+      : bestManual
+        ? "最佳揮棒的擊球是你標的。目前這球還是自動判斷。"
+        : currentManual
+          ? "目前這球的擊球是你標的。最佳揮棒還是自動判斷。"
+          : null;
+  if (!text) return null;
+  return <p className="mt-2 text-sm leading-6 text-amber">{text}</p>;
 }

@@ -57,6 +57,8 @@ export type SwingRead = {
   imageSwingSign: 1 | -1;
   /** Lead wrist sits on the left half relative to the other wrist. */
   leadOnImageLeft: boolean;
+  /** Contact time came from the coach, not the hand-speed peak. */
+  contactSource: "auto" | "manual";
   phases: Record<PhaseId, number>;
   metrics: SwingMetrics;
   validFrames: number;

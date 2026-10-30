@@ -28,6 +28,8 @@ export function SwingLab() {
   const [model, setModel] = useState<ModelQuality>("full");
   const [analyzedModel, setAnalyzedModel] = useState<ModelQuality | null>(null);
   const [rate, setRate] = useState<PlaybackRate>(1);
+  const [bestContact, setBestContact] = useState<number | null>(null);
+  const [currentContact, setCurrentContact] = useState<number | null>(null);
   const [running, setRunning] = useState(false);
   const [step, setStep] = useState(0);
   const [progress, setProgress] = useState("");
@@ -35,12 +37,15 @@ export function SwingLab() {
   const abortRef = useRef<AbortController | null>(null);
 
   const bestRead = useMemo(
-    () => (bestFrames && best ? interpretSwing(bestFrames, hand, best.width / best.height) : null),
-    [bestFrames, best, hand],
+    () => (bestFrames && best ? interpretSwing(bestFrames, hand, best.width / best.height, bestContact) : null),
+    [bestFrames, best, hand, bestContact],
   );
   const currentRead = useMemo(
-    () => (currentFrames && current ? interpretSwing(currentFrames, hand, current.width / current.height) : null),
-    [currentFrames, current, hand],
+    () =>
+      currentFrames && current
+        ? interpretSwing(currentFrames, hand, current.width / current.height, currentContact)
+        : null,
+    [currentFrames, current, hand, currentContact],
   );
 
   const ready = Boolean(best && current);
@@ -59,9 +64,9 @@ export function SwingLab() {
   const statusText = running
     ? progress || "分析中…"
     : error
-      ? `${error}${analyzed ? " 播放仍可調到 0.1 倍，打者方向也可以直接改。" : ""}`
+      ? `${error}${analyzed ? " 播放仍可調到 0.1 倍。打者方向和擊球幀也可以直接改。" : ""}`
       : analyzed
-        ? "分析完成。播放可以調到 0.1 倍。切換左打或右打會立刻重算，不用重跑骨架。"
+        ? "分析完成。播放可以調到 0.1 倍。擊球的那一幀可以自己標，左打或右打也會立刻重算，不用重跑骨架。"
         : ready
           ? "兩支影片都好了。慢的電腦建議先指定左打或右打，再開始分析。"
           : "等待影片。第一次分析會載入人體姿態模型（標準約 10 MB），之後留在這台電腦。影片不會上傳。";
@@ -69,12 +74,14 @@ export function SwingLab() {
   function clearBest() {
     setBest(null);
     setBestFrames(null);
+    setBestContact(null);
     setError(null);
   }
 
   function clearCurrent() {
     setCurrent(null);
     setCurrentFrames(null);
+    setCurrentContact(null);
     setError(null);
   }
 
@@ -166,6 +173,8 @@ export function SwingLab() {
           title="最佳揮棒 · 青色（矯正版）"
           hint="拖曳影片到這裡，或選擇檔案。建議：單次完整揮棒、固定機位、全身入鏡。"
           rate={rate}
+          contact={bestContact}
+          onContact={setBestContact}
           onClear={clearBest}
           onSlot={(slot) => {
             setBest(slot);
@@ -178,6 +187,8 @@ export function SwingLab() {
           title="目前揮棒 · 橘色（球員）"
           hint="機位、距離、揮棒動作留白盡量跟最佳那支相同。"
           rate={rate}
+          contact={currentContact}
+          onContact={setCurrentContact}
           onClear={clearCurrent}
           onSlot={(slot) => {
             setCurrent(slot);
@@ -275,7 +286,7 @@ export function SwingLab() {
         <p className="text-xs leading-5 text-muted">
           {modelNote}
           {rate === 0.1 ? " 現在是 0.1 倍慢放，預覽和比對都會用這個速度。" : ""}
-          {analyzed ? " 換左打或右打會馬上重算，不用再按開始分析。" : ""}
+          {analyzed ? " 換左打、右打，或改擊球的那一幀，會馬上重算，不用再按開始分析。" : " 可以先把影片停在打到球的那一格，按「這幀是擊球」。"}
         </p>
       </section>
 
@@ -324,6 +335,10 @@ export function SwingLab() {
           currentRead={currentRead}
           rate={rate}
           onRate={setRate}
+          bestContact={bestContact}
+          currentContact={currentContact}
+          onBestContact={setBestContact}
+          onCurrentContact={setCurrentContact}
         />
       ) : null}
 

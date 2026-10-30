@@ -18,6 +18,10 @@ type Props = {
   currentRead: SwingRead;
   rate: PlaybackRate;
   onRate: (rate: PlaybackRate) => void;
+  bestContact: number | null;
+  currentContact: number | null;
+  onBestContact: (time: number | null) => void;
+  onCurrentContact: (time: number | null) => void;
 };
 
 function clamp(value: number, min: number, max: number) {
@@ -33,6 +37,10 @@ export function CompareStage({
   currentRead,
   rate,
   onRate,
+  bestContact,
+  currentContact,
+  onBestContact,
+  onCurrentContact,
 }: Props) {
   const videoA = useRef<HTMLVideoElement>(null);
   const videoB = useRef<HTMLVideoElement>(null);
@@ -45,8 +53,14 @@ export function CompareStage({
   const masterRef = useRef(0);
   const playingRef = useRef(false);
 
-  const contactA = bestRead.ok ? bestRead.phases.contact : 0;
-  const contactB = currentRead.ok ? currentRead.phases.contact : 0;
+  const contactA = bestContact ?? (bestRead.ok ? bestRead.phases.contact : 0);
+  const contactB = currentContact ?? (currentRead.ok ? currentRead.phases.contact : 0);
+  const contactKey = `${bestContact ?? ""}|${currentContact ?? ""}`;
+  const [seenContact, setSeenContact] = useState(contactKey);
+  if (seenContact !== contactKey) {
+    setSeenContact(contactKey);
+    setMaster(0);
+  }
   const domain = align
     ? {
         min: -Math.max(contactA, contactB),
@@ -208,6 +222,29 @@ export function CompareStage({
     }
   }
 
+  function nudge(which: "best" | "current", direction: -1 | 1) {
+    const video = which === "best" ? videoA.current : videoB.current;
+    if (!video) return;
+    videoA.current?.pause();
+    videoB.current?.pause();
+    setPlaying(false);
+    playingRef.current = false;
+    const duration = video.duration || (which === "best" ? best.duration : current.duration);
+    video.currentTime = clamp(video.currentTime + direction / 30, 0, Math.max(duration - 0.001, 0));
+  }
+
+  function mark(which: "best" | "current") {
+    const video = which === "best" ? videoA.current : videoB.current;
+    if (!video) return;
+    videoA.current?.pause();
+    videoB.current?.pause();
+    setPlaying(false);
+    playingRef.current = false;
+    const time = video.currentTime;
+    if (which === "best") onBestContact(time);
+    else onCurrentContact(time);
+  }
+
   function jump(phase: PhaseId) {
     if (!bestRead.ok) return;
     const time = bestRead.phases[phase];
@@ -221,7 +258,9 @@ export function CompareStage({
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-white">兩棒並排</h2>
-          <p className="mt-1 text-sm text-muted">空白鍵播放，左右方向鍵逐幀。骨架較亮的那邊是鉛側。</p>
+          <p className="mt-1 text-sm text-muted">
+            空白鍵一起播放，左右方向鍵兩支一起走。要改某一支打到球的那一幀，用那支底下的上一幀、下一幀，再按「這幀是擊球」。
+          </p>
         </div>
         <div className="flex flex-col gap-1">
           <span className="text-[11px] text-muted">播放速度</span>
@@ -260,8 +299,12 @@ export function CompareStage({
           master={master}
           align={align}
           contact={contactA}
+          marked={bestContact}
           onTime={onTime}
           onReady={(video) => ready(video, contactA)}
+          onNudge={(direction) => nudge("best", direction)}
+          onMark={() => mark("best")}
+          onClearMark={() => onBestContact(null)}
         />
         <Film
           label="目前揮棒"
@@ -274,8 +317,12 @@ export function CompareStage({
           master={master}
           align={align}
           contact={contactB}
+          marked={currentContact}
           onTime={() => undefined}
           onReady={(video) => ready(video, contactB)}
+          onNudge={(direction) => nudge("current", direction)}
+          onMark={() => mark("current")}
+          onClearMark={() => onCurrentContact(null)}
         />
       </div>
 
@@ -308,7 +355,7 @@ export function CompareStage({
         <span className="ml-auto font-mono text-sm tabular-nums text-muted">{formatClock(Math.max(master, 0))}</span>
       </div>
       {rate === 0.1 ? (
-        <p className="mt-2 text-sm text-amber">0.1 倍慢放。著地、啟動和擊球可以停在同一格上看。</p>
+        <p className="mt-2 text-sm text-amber">0.1 倍慢放。停在球棒碰到球的那一格，再按「這幀是擊球」。</p>
       ) : null}
       {rateNote ? <p className="mt-2 text-sm text-amber">{rateNote}</p> : null}
 
@@ -394,8 +441,12 @@ function Film({
   master,
   align,
   contact,
+  marked,
   onTime,
   onReady,
+  onNudge,
+  onMark,
+  onClearMark,
 }: {
   label: string;
   tone: "cyan" | "orange";
@@ -407,11 +458,18 @@ function Film({
   master: number;
   align: boolean;
   contact: number;
+  marked: number | null;
   onTime: () => void;
   onReady: (video: HTMLVideoElement) => void;
+  onNudge: (direction: -1 | 1) => void;
+  onMark: () => void;
+  onClearMark: () => void;
 }) {
-  const raw = align ? master + contact : master;
-  const outside = raw < -0.03 || raw > slot.duration + 0.03;
+  const [local, setLocal] = useState(0);
+  const synced = align ? master + contact : master;
+  const detached = Math.abs(local - clamp(synced, 0, Math.max(slot.duration, 0))) > 1 / 20;
+  const outside = !detached && (synced < -0.03 || synced > slot.duration + 0.03);
+  const onThisFrame = marked != null && Math.abs(local - marked) < 1 / 40;
   const side = read.handedness === "left" ? "左打者" : "右打者";
   const source =
     read.choice === "auto" ? "自動" : read.lowConfidence ? "依你指定的前腳" : read.mirrored ? "已改掉自動結果" : "你指定的";
@@ -432,7 +490,10 @@ function Film({
           playsInline
           preload="auto"
           className="aspect-video w-full bg-black object-contain"
-          onTimeUpdate={onTime}
+          onTimeUpdate={(event) => {
+            setLocal(event.currentTarget.currentTime);
+            onTime();
+          }}
           onLoadedMetadata={(event) => onReady(event.currentTarget)}
         />
         <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 h-full w-full" />
@@ -441,9 +502,14 @@ function Film({
             0.1× 慢放
           </span>
         ) : null}
+        {onThisFrame ? (
+          <span className="absolute top-2 right-2 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-[#042029]">
+            擊球
+          </span>
+        ) : null}
         {outside ? (
           <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-sm text-white">
-            {raw < 0 ? "這支還沒開始" : "這支已經結束"}
+            {synced < 0 ? "這支還沒開始" : "這支已經結束"}
           </div>
         ) : null}
       </div>
@@ -457,13 +523,48 @@ function Film({
       {read.ok ? (
         <div className="mt-2 grid grid-cols-4 gap-1 text-center">
           {PHASES.map((phase) => (
-            <div key={phase.id} className="rounded-md bg-[#071821] px-1 py-1.5">
+            <div
+              key={phase.id}
+              className={cn(
+                "rounded-md bg-[#071821] px-1 py-1.5",
+                phase.id === "contact" && read.contactSource === "manual" && "bg-[#2a220f] ring-1 ring-amber",
+              )}
+            >
               <div className="text-[10px] text-muted">{phase.label}</div>
               <div className="font-mono text-[12px] tabular-nums text-white">{read.phases[phase.id].toFixed(2)}s</div>
             </div>
           ))}
         </div>
       ) : null}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Button type="button" variant="outline" size="sm" onClick={() => onNudge(-1)}>
+          上一幀
+        </Button>
+        <Button type="button" variant="outline" size="sm" onClick={() => onNudge(1)}>
+          下一幀
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={onMark}
+          aria-pressed={onThisFrame}
+          className={onThisFrame ? "border-amber bg-amber text-[#2a1d05] hover:bg-[#ffd78a]" : undefined}
+        >
+          這幀是擊球
+        </Button>
+        {marked != null ? (
+          <Button type="button" variant="quiet" size="sm" onClick={onClearMark}>
+            改回自動
+          </Button>
+        ) : null}
+        <span className="ml-auto font-mono text-xs tabular-nums text-muted">{formatClock(local)}</span>
+      </div>
+      <p className="mt-1 text-xs leading-5 text-muted">
+        {marked != null
+          ? `擊球標在 ${formatClock(marked)}。兩支會對在這一格。`
+          : `擊球現在是自動判斷${read.ok ? `（${formatClock(contact)}）` : ""}。不准就改成你看到的那一格。`}
+      </p>
       {read.warnings.length > 0 && read.ok ? <p className="mt-2 text-xs text-amber">{read.warnings[0]}</p> : null}
     </figure>
   );

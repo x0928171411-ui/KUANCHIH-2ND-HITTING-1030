@@ -149,6 +149,7 @@ describe("interpretSwing", () => {
     assert.equal(read.lowConfidence, false);
     assert.equal(read.highlightRawLeft, true);
     assert.equal(read.imageSwingSign, 1);
+    assert.equal(read.contactSource, "auto");
     assert.ok(read.phases.load <= read.phases.landing + 0.001, JSON.stringify(read.phases));
     assert.ok(read.phases.landing <= read.phases.contact + 0.001, JSON.stringify(read.phases));
     assert.ok(read.phases.follow > read.phases.contact, JSON.stringify(read.phases));
@@ -198,6 +199,22 @@ describe("interpretSwing", () => {
     assert.equal(read.ok, true);
     assert.equal(read.handedness, "right");
     assert.equal(read.lowConfidence, false);
+  });
+
+  it("uses the coach's contact frame instead of the hand-speed peak", () => {
+    const frames = makeSwing();
+    const auto = interpretSwing(frames, "right", 16 / 9);
+    const marked = interpretSwing(frames, "right", 16 / 9, 0.3);
+    assert.equal(auto.contactSource, "auto");
+    assert.equal(marked.contactSource, "manual");
+    assert.equal(marked.phases.contact, 0.3);
+    assert.ok(Math.abs(marked.phases.contact - auto.phases.contact) > 0.05);
+    assert.ok(marked.phases.load <= marked.phases.landing + 0.001);
+    assert.ok(marked.phases.landing <= marked.phases.contact + 0.001);
+    assert.ok(marked.phases.follow > marked.phases.contact);
+    assert.ok(marked.metrics.timeToContact < auto.metrics.timeToContact);
+    assert.equal(marked.handedness, "right");
+    assert.equal(interpretSwing(frames, "right", 16 / 9, null).phases.contact, auto.phases.contact);
   });
 
   it("fails closed when the person is missing", () => {
