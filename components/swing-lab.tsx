@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { BlastPanel } from "@/components/blast-panel";
 import { CompareStage } from "@/components/compare-stage";
+import { ImpactBoard } from "@/components/impact-board";
 import { UploadCard } from "@/components/upload-card";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -273,13 +274,13 @@ export function SwingLab() {
           <p className="max-w-3xl text-sm leading-6 text-muted">{handNote}</p>
           <Button variant="quiet" asChild>
             <a
-              href="#blast"
+              href="#impact"
               onClick={(event) => {
                 event.preventDefault();
-                document.getElementById("blast")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                document.getElementById("impact")?.scrollIntoView({ behavior: "smooth", block: "start" });
               }}
             >
-              Blast 數字比較 →
+              擊球瞬間 →
             </a>
           </Button>
         </div>
@@ -324,6 +325,30 @@ export function SwingLab() {
         </ol>
         <p className={cn("mt-3 text-sm leading-6", error ? "text-orange" : "text-muted")}>{statusText}</p>
       </section>
+
+      {analyzed && best && current && bestFrames && currentFrames && bestRead && currentRead ? (
+        <ImpactBoard
+          best={best}
+          current={current}
+          bestFrames={bestFrames}
+          currentFrames={currentFrames}
+          bestRead={bestRead}
+          currentRead={currentRead}
+          rate={rate}
+          onRate={setRate}
+          bestContact={bestContact}
+          currentContact={currentContact}
+          onBestContact={setBestContact}
+          onCurrentContact={setCurrentContact}
+        />
+      ) : (
+        <section id="impact" className="scroll-mt-6 rounded-2xl border border-dashed border-line bg-[#07111c] px-4 py-6">
+          <h2 className="text-lg font-semibold text-white">擊球瞬間</h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
+            兩支影片分析完，這裡會把擊球那一格的骨架並排畫出來。青色是你目前的動作，橘色是最佳那球。可以換視角、慢放，也可以在這一頁確認擊球幀。
+          </p>
+        </section>
+      )}
 
       {analyzed && best && current && bestFrames && currentFrames && bestRead && currentRead ? (
         <CompareStage
