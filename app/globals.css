@@ -1,0 +1,71 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #071422;
+  --card: #0c2133;
+  --ink: #e8f3fb;
+  --muted: #9eb3c6;
+  --cyan: #3edcf6;
+  --orange: #ff8a3c;
+  --line: #1c3c52;
+  --amber: #ffc14a;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-cyan: var(--cyan);
+  --color-orange: var(--orange);
+  --color-line: var(--line);
+  --color-amber: var(--amber);
+  --font-sans: var(--font-geist), "WenQuanYi Micro Hei", "Microsoft JhengHei", "PingFang TC", sans-serif;
+}
+
+body {
+  background:
+    radial-gradient(900px 380px at 8% -8%, rgba(62, 220, 246, 0.09), transparent 58%),
+    var(--bg);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  min-height: 100%;
+}
+
+::selection {
+  background: rgba(62, 220, 246, 0.35);
+}
+
+input[type="range"] {
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  border-radius: 999px;
+  background: #1c3c52;
+  outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #f4f8fb;
+  border: 2px solid var(--cyan);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: #f4f8fb;
+  border: 2px solid var(--cyan);
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
