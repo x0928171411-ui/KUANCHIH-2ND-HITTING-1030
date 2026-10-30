@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { PHASES, rateLabel } from "@/lib/constants";
 import { drawPose, frameAt, videoContentRect } from "@/lib/draw-pose";
+import { exportComparison } from "@/lib/export-compare";
 import { formatClock } from "@/lib/format";
 import type { PhaseId, PlaybackRate, PoseFrame, SwingRead, VideoSlot } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -50,8 +51,11 @@ export function CompareStage({
   const [playing, setPlaying] = useState(false);
   const [master, setMaster] = useState(0);
   const [rateNote, setRateNote] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportNote, setExportNote] = useState<string | null>(null);
   const masterRef = useRef(0);
   const playingRef = useRef(false);
+  const exportAbort = useRef<AbortController | null>(null);
 
   const contactA = bestContact ?? (bestRead.ok ? bestRead.phases.contact : 0);
   const contactB = currentContact ?? (currentRead.ok ? currentRead.phases.contact : 0);
@@ -245,6 +249,57 @@ export function CompareStage({
     else onCurrentContact(time);
   }
 
+  async function download() {
+    if (exportAbort.current) {
+      exportAbort.current.abort();
+      return;
+    }
+    const ctrl = new AbortController();
+    exportAbort.current = ctrl;
+    setExporting(true);
+    setExportNote("準備 mp4…");
+    videoA.current?.pause();
+    videoB.current?.pause();
+    setPlaying(false);
+    playingRef.current = false;
+    try {
+      const file = await exportComparison({
+        bestUrl: best.url,
+        currentUrl: current.url,
+        bestDuration: best.duration,
+        currentDuration: current.duration,
+        bestFrames,
+        currentFrames,
+        bestRead,
+        currentRead,
+        align,
+        contactA,
+        contactB,
+        start: domain.min,
+        span: Math.max(domain.max - domain.min, 1 / 30),
+        rate,
+        signal: ctrl.signal,
+        onProgress: (done, total) => setExportNote(`正在做 mp4，${done} / ${total} 幀`),
+      });
+      const url = URL.createObjectURL(file.blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = file.filename;
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+      setExportNote(`已下載 ${file.filename}`);
+    } catch (caught) {
+      if (ctrl.signal.aborted || (caught instanceof DOMException && caught.name === "AbortError")) {
+        setExportNote("已取消下載。");
+      } else {
+        setExportNote(caught instanceof Error ? caught.message : "下載失敗。");
+      }
+    } finally {
+      exportAbort.current = null;
+      setExporting(false);
+    }
+  }
+
   function jump(phase: PhaseId) {
     if (!bestRead.ok) return;
     const time = bestRead.phases[phase];
@@ -352,11 +407,17 @@ export function CompareStage({
         >
           {align ? "已對齊擊球" : "對齊擊球"}
         </Button>
+        <Button type="button" variant="outline" onClick={() => void download()}>
+          {exporting ? "取消下載" : "下載比較影片.mp4"}
+        </Button>
         <span className="ml-auto font-mono text-sm tabular-nums text-muted">{formatClock(Math.max(master, 0))}</span>
       </div>
       {rate === 0.1 ? (
-        <p className="mt-2 text-sm text-amber">0.1 倍慢放。停在球棒碰到球的那一格，再按「這幀是擊球」。</p>
-      ) : null}
+        <p className="mt-2 text-sm text-amber">0.1 倍慢放。停在球棒碰到球的那一格，再按「這幀是擊球」。下載的 mp4 也會是 0.1 倍，所以檔案會比較長。</p>
+      ) : (
+        <p className="mt-2 text-sm text-muted">下載的是並排比較，骨架畫在畫面上，檔名是 .mp4。速度跟現在選的播放速度一樣。</p>
+      )}
+      {exportNote ? <p className="mt-2 text-sm text-amber">{exportNote}</p> : null}
       {rateNote ? <p className="mt-2 text-sm text-amber">{rateNote}</p> : null}
 
       <div className="mt-4">
