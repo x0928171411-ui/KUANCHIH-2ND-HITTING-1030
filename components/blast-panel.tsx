@@ -26,7 +26,7 @@ export function BlastPanel({ best, current }: { best: SwingRead | null; current:
                 <tr className="text-xs text-muted">
                   <th className="py-2 pr-3 font-medium">項目</th>
                   <th className="py-2 pr-3 font-medium text-cyan">最佳揮棒</th>
-                  <th className="py-2 pr-3 font-medium text-orange">目前這球</th>
+                  <th className="py-2 pr-3 font-medium text-yellow">目前這球</th>
                   <th className="py-2 pr-3 font-medium">差距</th>
                   <th className="py-2 font-medium">怎麼看</th>
                 </tr>
@@ -36,7 +36,7 @@ export function BlastPanel({ best, current }: { best: SwingRead | null; current:
                   <tr key={row.id} className="border-t border-line">
                     <th className="py-3 pr-3 font-medium text-white">{row.label}</th>
                     <td className="py-3 pr-3 font-mono tabular-nums text-[#d7f6fd]">{row.best}</td>
-                    <td className="py-3 pr-3 font-mono tabular-nums text-[#ffe0cc]">{row.current}</td>
+                    <td className="py-3 pr-3 font-mono tabular-nums text-yellow">{row.current}</td>
                     <td className="py-3 pr-3 font-mono tabular-nums">{row.delta}</td>
                     <td className={cn("py-3", row.tone === "gap" ? "text-white" : "text-muted")}>{row.note}</td>
                   </tr>

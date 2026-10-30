@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { PHASES, rateLabel } from "@/lib/constants";
+import { BEST_COLOR, CURRENT_COLOR, PHASES, rateLabel } from "@/lib/constants";
 import { drawPose, frameAt, videoContentRect } from "@/lib/draw-pose";
 import { exportComparison } from "@/lib/export-compare";
 import { formatClock } from "@/lib/format";
@@ -112,8 +112,8 @@ export function CompareStage({
   useEffect(() => {
     let frame = 0;
     const paint = () => {
-      drawVideo(videoA.current, canvasA.current, bestFrames, bestRead, "#3edcf6");
-      drawVideo(videoB.current, canvasB.current, currentFrames, currentRead, "#ff8a3c");
+      drawVideo(videoA.current, canvasA.current, bestFrames, bestRead, BEST_COLOR);
+      drawVideo(videoB.current, canvasB.current, currentFrames, currentRead, CURRENT_COLOR);
       frame = window.requestAnimationFrame(paint);
     };
     frame = window.requestAnimationFrame(paint);
@@ -363,7 +363,7 @@ export function CompareStage({
         />
         <Film
           label="目前揮棒"
-          tone="orange"
+          tone="yellow"
           slot={current}
           read={currentRead}
           videoRef={videoB}
@@ -510,7 +510,7 @@ function Film({
   onClearMark,
 }: {
   label: string;
-  tone: "cyan" | "orange";
+  tone: "cyan" | "yellow";
   slot: VideoSlot;
   read: SwingRead;
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -538,7 +538,7 @@ function Film({
   return (
     <figure className="min-w-0">
       <figcaption className="mb-2 flex flex-wrap items-center gap-2">
-        <span className={cn("text-sm font-semibold", tone === "cyan" ? "text-cyan" : "text-orange")}>{label}</span>
+        <span className={cn("text-sm font-semibold", tone === "cyan" ? "text-cyan" : "text-yellow")}>{label}</span>
         <span className="rounded-full border border-line px-2 py-0.5 text-[11px] text-[#d5e4ee]">
           {side} · {source}
         </span>

@@ -129,7 +129,7 @@ export function UploadCard({ tone, title, hint, rate, contact, onContact, onClea
       }}
       className={cn(
         "flex min-h-[168px] flex-col rounded-2xl border bg-card p-4 transition-colors",
-        tone === "cyan" ? "border-[#2eb8e6]" : "border-[#f07a32]",
+        tone === "cyan" ? "border-cyan" : "border-yellow",
         over && "bg-[#123044]",
       )}
     >

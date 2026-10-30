@@ -6,6 +6,7 @@
   --ink: #e8f3fb;
   --muted: #9eb3c6;
   --cyan: #3edcf6;
+  --yellow: #ffe14a;
   --orange: #ff8a3c;
   --line: #1c3c52;
   --amber: #ffc14a;
@@ -17,6 +18,7 @@
   --color-ink: var(--ink);
   --color-muted: var(--muted);
   --color-cyan: var(--cyan);
+  --color-yellow: var(--yellow);
   --color-orange: var(--orange);
   --color-line: var(--line);
   --color-amber: var(--amber);

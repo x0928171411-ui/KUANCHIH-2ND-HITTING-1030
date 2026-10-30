@@ -2,6 +2,10 @@ import type { HandednessChoice, ModelQuality, PhaseId, PlaybackRate } from "./ty
 
 export const PLAYBACK_RATES: readonly PlaybackRate[] = [0.1, 0.25, 0.5, 1];
 
+/** Best swing is cyan. The current swing is yellow. */
+export const BEST_COLOR = "#3edcf6";
+export const CURRENT_COLOR = "#ffe14a";
+
 export const HANDEDNESS_OPTIONS: readonly { value: HandednessChoice; label: string }[] = [
   { value: "auto", label: "自動判斷" },
   { value: "left", label: "左打者" },

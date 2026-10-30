@@ -163,7 +163,7 @@ export function SwingLab() {
           <span className="mt-1 block text-cyan">一棒拆解</span>
         </h1>
         <p className="mt-4 text-sm leading-7 text-muted">
-          上傳兩支揮棒影片：最佳揮棒（青色，當成你的矯正版）和目前這球（橘色）。程式會在你的電腦內一格一格看完影片，抓出身上
+          上傳兩支揮棒影片：最佳揮棒（青色，當成你的矯正版）和目前這球（黃色）。程式會在你的電腦內一格一格看完影片，抓出身上
           33 個關節點，重建估計的 3D 人形，自動找出著地、啟動、擊球、收棒，並告訴你哪裡跟最佳揮棒不一樣。影片不會上傳到任何伺服器。
         </p>
       </section>
@@ -185,7 +185,7 @@ export function SwingLab() {
         />
         <UploadCard
           tone="orange"
-          title="目前揮棒 · 橘色（球員）"
+          title="目前揮棒 · 黃色（球員）"
           hint="機位、距離、揮棒動作留白盡量跟最佳那支相同。"
           rate={rate}
           contact={currentContact}
@@ -345,7 +345,7 @@ export function SwingLab() {
         <section id="impact" className="scroll-mt-6 rounded-2xl border border-dashed border-line bg-[#07111c] px-4 py-6">
           <h2 className="text-lg font-semibold text-white">擊球瞬間</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            兩支影片分析完，這裡會把擊球那一格的骨架並排畫出來。青色是你目前的動作，橘色是最佳那球。可以換視角、慢放，也可以在這一頁確認擊球幀。
+            兩支影片分析完，這裡會把擊球那一格的骨架畫出來。青色是最佳揮棒，黃色是目前這球。可以左右並排或疊在一起，也可以換視角、慢放，並在這一頁確認擊球幀。
           </p>
         </section>
       )}

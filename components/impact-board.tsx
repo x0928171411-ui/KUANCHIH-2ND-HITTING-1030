@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { PHASES, PLAYBACK_RATES, rateLabel } from "@/lib/constants";
+import { BEST_COLOR, CURRENT_COLOR, PHASES, PLAYBACK_RATES, rateLabel } from "@/lib/constants";
 import { drawPose, frameAt, videoContentRect } from "@/lib/draw-pose";
 import { formatClock } from "@/lib/format";
 import {
@@ -22,7 +22,7 @@ import {
 import type { PlaybackRate, PoseFrame, Side, SwingRead, VideoSlot } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-type FigureMode = "both" | "current" | "best";
+type FigureMode = "both" | "stack" | "current" | "best";
 type Clip = "current" | "best";
 
 type Props = {
@@ -208,7 +208,7 @@ export function ImpactBoard({
               spec: bestSpec,
               facing: bestFacing,
               time: rawBest,
-              color: "#ff8a3c",
+              color: BEST_COLOR,
             }
           : null,
         current: currentRead.ok
@@ -218,7 +218,7 @@ export function ImpactBoard({
               spec: currentSpec,
               facing: currentFacing,
               time: rawCurrent,
-              color: "#3edcf6",
+              color: CURRENT_COLOR,
             }
           : null,
       });
@@ -270,7 +270,7 @@ export function ImpactBoard({
         <div>
           <h2 className="text-lg font-semibold text-white">擊球瞬間</h2>
           <p className="mt-1 text-sm text-muted">
-            青色是你目前的動作，橘色是最佳那球。兩支同一邊的打者，前腳會畫在同一邊。
+            青色是最佳揮棒，黃色是目前這球。兩支同一邊的打者，前腳會畫在同一邊。
           </p>
         </div>
         <p className="font-mono text-xs text-muted">T {formatSigned(master)}</p>
@@ -293,16 +293,16 @@ export function ImpactBoard({
               <thead>
                 <tr className="text-muted">
                   <th className="py-1 pr-2 font-medium" />
-                  <th className="py-1 pr-2 font-medium text-cyan">球員</th>
-                  <th className="py-1 font-medium text-orange">最佳</th>
+                  <th className="py-1 pr-2 font-medium text-cyan">最佳</th>
+                  <th className="py-1 font-medium text-yellow">球員</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => (
                   <tr key={row.label} className="border-t border-line/70">
                     <th className="py-1 pr-2 font-medium text-[#d5e4ee]">{row.label}</th>
-                    <td className="py-1 pr-2 font-mono text-cyan">{row.current}</td>
-                    <td className="py-1 font-mono text-orange">{row.best}</td>
+                    <td className="py-1 pr-2 font-mono text-cyan">{row.best}</td>
+                    <td className="py-1 font-mono text-yellow">{row.current}</td>
                   </tr>
                 ))}
               </tbody>
@@ -331,7 +331,7 @@ export function ImpactBoard({
           slot={clip === "best" ? best : current}
           frames={clip === "best" ? bestFrames : currentFrames}
           read={clip === "best" ? bestRead : currentRead}
-          color={clip === "best" ? "#ff8a3c" : "#3edcf6"}
+          color={clip === "best" ? BEST_COLOR : CURRENT_COLOR}
           raw={clip === "best" ? rawBest : rawCurrent}
           rate={rate}
           playing={playing}
@@ -341,10 +341,10 @@ export function ImpactBoard({
 
       <div className="mt-3 flex flex-wrap gap-3 text-[11px] text-muted">
         <span className="inline-flex items-center gap-1">
-          <i className="h-2 w-2 rounded-full bg-cyan" /> 目前（你）
+          <i className="h-2 w-2 rounded-full bg-cyan" /> 最佳（矯正版）
         </span>
         <span className="inline-flex items-center gap-1">
-          <i className="h-2 w-2 rounded-full bg-orange" /> 最佳（矯正版）
+          <i className="h-2 w-2 rounded-full bg-yellow" /> 目前（你）
         </span>
         <span className="inline-flex items-center gap-1">
           <i className="h-2 w-2 rounded-full bg-white" /> 差距最大的關節
@@ -408,11 +408,12 @@ export function ImpactBoard({
           type="single"
           value={figures}
           onValueChange={(value) => {
-            if (value === "both" || value === "current" || value === "best") setFigures(value);
+            if (value === "both" || value === "stack" || value === "current" || value === "best") setFigures(value);
           }}
           aria-label="顯示誰"
         >
           <ToggleGroupItem value="both">左右並排</ToggleGroupItem>
+          <ToggleGroupItem value="stack">疊在一起</ToggleGroupItem>
           <ToggleGroupItem value="current">只看球員</ToggleGroupItem>
           <ToggleGroupItem value="best">只看最佳</ToggleGroupItem>
         </ToggleGroup>
@@ -607,7 +608,7 @@ function FilmInset({
           onClick={() => onClip("current")}
           className={cn(
             "rounded-lg border py-2 text-sm font-semibold",
-            clip === "current" ? "border-cyan bg-[#14384c] text-cyan" : "border-line text-muted",
+            clip === "current" ? "border-yellow bg-[#3a3412] text-yellow" : "border-line text-muted",
           )}
         >
           目前
@@ -617,7 +618,7 @@ function FilmInset({
           onClick={() => onClip("best")}
           className={cn(
             "rounded-lg border py-2 text-sm font-semibold",
-            clip === "best" ? "border-orange bg-[#3a2416] text-orange" : "border-line text-muted",
+            clip === "best" ? "border-cyan bg-[#14384c] text-cyan" : "border-line text-muted",
           )}
         >
           最佳
@@ -676,19 +677,24 @@ function paintStage(
   ctx.fillText(input.title, width / 2, 12);
   ctx.textAlign = "left";
 
-  const slots =
-    input.figures === "current"
+  const stacked = input.figures === "stack";
+  const slots = stacked
+    ? [
+        { figure: input.best, cx: width * 0.5 },
+        { figure: input.current, cx: width * 0.5 },
+      ]
+    : input.figures === "current"
       ? [{ figure: input.current, cx: width * 0.5 }]
       : input.figures === "best"
         ? [{ figure: input.best, cx: width * 0.5 }]
         : [
-            { figure: input.current, cx: width * 0.32 },
-            { figure: input.best, cx: width * 0.7 },
+            { figure: input.best, cx: width * 0.32 },
+            { figure: input.current, cx: width * 0.7 },
           ];
   const limit = input.figures === "both" ? Math.min(width * 0.2, height * 0.42) : Math.min(width * 0.34, height * 0.44);
   for (const slot of slots) {
     if (!slot.figure) continue;
-    drawFigure(ctx, slot.figure, slot.cx, height * 0.58, limit, input);
+    drawFigure(ctx, slot.figure, slot.cx, height * 0.58, limit, input, stacked ? 0.78 : 1);
   }
   if (!input.best && !input.current) {
     ctx.fillStyle = "#9eb3c6";
@@ -705,6 +711,7 @@ function drawFigure(
   cy: number,
   limit: number,
   input: { view: ImpactView; trail: boolean; ground: boolean; focusId: ImpactCard["id"] | null },
+  opacity = 1,
 ) {
   const frame = frameAt(figure.frames, figure.time);
   const points = projectLandmarks(frame?.lm ?? null, input.view, figure.read.handedness, figure.spec, figure.facing);
@@ -733,7 +740,7 @@ function drawFigure(
     ctx.scale(1, 0.28);
     ctx.beginPath();
     ctx.strokeStyle = figure.color;
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.45 * opacity;
     ctx.lineWidth = 2;
     ctx.ellipse(0, 0, Math.max(36, torso * scale * 0.85), Math.max(36, torso * scale * 0.85), 0, 0, Math.PI * 2);
     ctx.stroke();
@@ -753,7 +760,7 @@ function drawFigure(
     if (trail.length > 1) {
       ctx.beginPath();
       ctx.strokeStyle = figure.color;
-      ctx.globalAlpha = 0.9;
+      ctx.globalAlpha = 0.9 * opacity;
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
       trail.forEach((point, index) => {
@@ -776,7 +783,7 @@ function drawFigure(
     const b = map(end);
     ctx.beginPath();
     ctx.strokeStyle = figure.color;
-    ctx.globalAlpha = side === "M" ? 0.95 : lead ? 1 : 0.4;
+    ctx.globalAlpha = (side === "M" ? 0.95 : lead ? 1 : 0.4) * opacity;
     ctx.lineWidth = lead ? 5 : 2.4;
     ctx.lineCap = "round";
     ctx.moveTo(a.x, a.y);
@@ -790,13 +797,13 @@ function drawFigure(
     const b = map(neck);
     ctx.beginPath();
     ctx.strokeStyle = figure.color;
-    ctx.globalAlpha = 0.8;
+    ctx.globalAlpha = 0.8 * opacity;
     ctx.lineWidth = 2;
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
   }
-  ctx.globalAlpha = 1;
+  ctx.globalAlpha = opacity;
   const focus = new Set(problemJoints(input.focusId, figure.read.handedness));
   for (const index of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
     const point = points[index];
@@ -816,6 +823,7 @@ function drawFigure(
       ctx.stroke();
     }
   }
+  ctx.globalAlpha = 1;
 }
 
 function problemJoints(id: ImpactCard["id"] | null, handedness: Side) {

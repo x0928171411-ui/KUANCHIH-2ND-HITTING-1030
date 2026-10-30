@@ -1,4 +1,5 @@
 import { Muxer, ArrayBufferTarget } from "mp4-muxer";
+import { CURRENT_COLOR, BEST_COLOR } from "./constants";
 import { drawPose, frameAt, videoContentRect } from "./draw-pose";
 import { formatClock } from "./format";
 import type { PoseFrame, SwingRead } from "./types";
@@ -87,7 +88,7 @@ export async function exportComparison(input: ComparisonExport) {
     video: bestVideo,
     frames: input.bestFrames,
     read: input.bestRead,
-    color: "#3edcf6",
+    color: BEST_COLOR,
     label: "最佳揮棒",
     contact: input.contactA,
     duration: input.bestDuration,
@@ -96,7 +97,7 @@ export async function exportComparison(input: ComparisonExport) {
     video: currentVideo,
     frames: input.currentFrames,
     read: input.currentRead,
-    color: "#ff8a3c",
+    color: CURRENT_COLOR,
     label: "目前揮棒",
     contact: input.contactB,
     duration: input.currentDuration,
