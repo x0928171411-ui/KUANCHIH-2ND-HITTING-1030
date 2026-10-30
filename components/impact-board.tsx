@@ -13,9 +13,11 @@ import {
   measurePose,
   projectLandmarks,
   spaceSpec,
+  swingFacing,
   type ImpactCard,
   type ImpactTone,
   type ImpactView,
+  type SwingFacing,
 } from "@/lib/impact";
 import type { PlaybackRate, PoseFrame, Side, SwingRead, VideoSlot } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -127,6 +129,21 @@ export function ImpactBoard({
     () => spaceSpec(currentFrames, current.width / current.height),
     [currentFrames, current.width, current.height],
   );
+  const bestFacing = useMemo(
+    () => swingFacing(bestFrames, bestRead.handedness, bestRead.imageSwingSign, bestSpec, bestRead.phases.landing),
+    [bestFrames, bestRead.handedness, bestRead.imageSwingSign, bestRead.phases.landing, bestSpec],
+  );
+  const currentFacing = useMemo(
+    () =>
+      swingFacing(
+        currentFrames,
+        currentRead.handedness,
+        currentRead.imageSwingSign,
+        currentSpec,
+        currentRead.phases.landing,
+      ),
+    [currentFrames, currentRead.handedness, currentRead.imageSwingSign, currentRead.phases.landing, currentSpec],
+  );
 
   useEffect(() => {
     playingRef.current = playing;
@@ -189,6 +206,7 @@ export function ImpactBoard({
               frames: bestFrames,
               read: bestRead,
               spec: bestSpec,
+              facing: bestFacing,
               time: rawBest,
               color: "#ff8a3c",
             }
@@ -198,6 +216,7 @@ export function ImpactBoard({
               frames: currentFrames,
               read: currentRead,
               spec: currentSpec,
+              facing: currentFacing,
               time: rawCurrent,
               color: "#3edcf6",
             }
@@ -222,6 +241,8 @@ export function ImpactBoard({
     currentFrames,
     bestSpec,
     currentSpec,
+    bestFacing,
+    currentFacing,
     rawBest,
     rawCurrent,
     contactBest,
@@ -248,7 +269,9 @@ export function ImpactBoard({
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold text-white">擊球瞬間</h2>
-          <p className="mt-1 text-sm text-muted">青色是你目前的動作，橘色是最佳那球。</p>
+          <p className="mt-1 text-sm text-muted">
+            青色是你目前的動作，橘色是最佳那球。兩支同一邊的打者，前腳會畫在同一邊。
+          </p>
         </div>
         <p className="font-mono text-xs text-muted">T {formatSigned(master)}</p>
       </div>
@@ -608,6 +631,7 @@ type Figure = {
   frames: PoseFrame[];
   read: SwingRead;
   spec: ReturnType<typeof spaceSpec>;
+  facing: SwingFacing;
   time: number;
   color: string;
 };
@@ -683,7 +707,7 @@ function drawFigure(
   input: { view: ImpactView; trail: boolean; ground: boolean; focusId: ImpactCard["id"] | null },
 ) {
   const frame = frameAt(figure.frames, figure.time);
-  const points = projectLandmarks(frame?.lm ?? null, input.view, figure.read.handedness, figure.spec);
+  const points = projectLandmarks(frame?.lm ?? null, input.view, figure.read.handedness, figure.spec, figure.facing);
   if (!points) return;
   const hip = mid2(points[23], points[24]);
   const sho = mid2(points[11], points[12]);
@@ -724,6 +748,7 @@ function drawFigure(
       input.view,
       figure.read.handedness,
       figure.spec,
+      figure.facing,
     );
     if (trail.length > 1) {
       ctx.beginPath();

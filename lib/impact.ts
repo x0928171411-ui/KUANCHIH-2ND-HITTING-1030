@@ -12,6 +12,14 @@ export type SpaceSpec = {
   aspect: number;
 };
 
+/** Pitcher side stays on screen-right for the whole swing, including the follow-through. */
+export type SwingFacing = {
+  cameraSign: 1 | -1;
+  forward: V3;
+  side: V3;
+  up: V3;
+};
+
 export type PoseMeasure = {
   unit: MetricUnit;
   trunk: number;
@@ -77,19 +85,38 @@ export function spaceSpec(frames: PoseFrame[], aspect = 16 / 9): SpaceSpec {
     : { space: "image", ySign: 1, aspect: safeAspect };
 }
 
+export function swingFacing(
+  frames: PoseFrame[],
+  handedness: Side,
+  imageSwingSign: 1 | -1,
+  spec: SpaceSpec,
+  landingTime: number,
+): SwingFacing {
+  const lm = frameAt(frames, landingTime)?.lm;
+  const ready = lm && lm.length >= 33 ? lm : null;
+  const axes = ready ? axesOf(ready, handedness, spec) : null;
+  return {
+    cameraSign: ready ? cameraSign(ready, handedness, imageSwingSign) : imageSwingSign,
+    forward: axes?.forward ?? { x: 0, y: 0, z: 1 },
+    side: axes?.side ?? { x: 1, y: 0, z: 0 },
+    up: axes?.up ?? { x: 0, y: 1, z: 0 },
+  };
+}
+
 export function projectLandmarks(
   lm: Landmark[] | null,
   view: ImpactView,
   handedness: Side,
   spec: SpaceSpec,
+  facing?: SwingFacing,
 ): Array<Pt | null> | null {
   if (!lm || lm.length < 33) return null;
-  if (view === "camera") return imagePlane(lm, spec.aspect);
-  const axes = axesOf(lm, handedness, spec);
-  if (!axes) return null;
+  const basis = facing ?? swingFacing([{ t: 0, lm }], handedness, 1, spec, 0);
+  if (view === "camera") return applyCameraSign(imagePlane(lm, spec.aspect), basis.cameraSign);
+  const hip = mid(pointOf(lm, L_HIP, spec), pointOf(lm, R_HIP, spec));
   return lm.map((point, index) => {
     if (point.v < 0.3 && index !== 0) return null;
-    return project(pointOf(lm, index, spec), axes, view);
+    return project(pointOf(lm, index, spec), { hip, ...basis }, view);
   });
 }
 
@@ -100,11 +127,11 @@ export function handTrail(
   view: ImpactView,
   handedness: Side,
   spec: SpaceSpec,
+  facing?: SwingFacing,
 ): Pt[] {
   const current = frameAt(frames, to);
   if (!current?.lm) return [];
-  const axes = axesOf(current.lm, handedness, spec);
-  if (!axes) return [];
+  const basis = facing ?? swingFacing(frames, handedness, 1, spec, from);
   const lead = handedness === "right" ? L_WRI : R_WRI;
   const points: Pt[] = [];
   const start = Math.min(from, to);
@@ -116,14 +143,14 @@ export function handTrail(
     if (frame.lm[lead].v < 0.3) continue;
     if (view === "camera") {
       points.push({
-        x: (frame.lm[lead].x - hipX) * spec.aspect,
+        x: (frame.lm[lead].x - hipX) * spec.aspect * basis.cameraSign,
         y: hipY - frame.lm[lead].y,
       });
       continue;
     }
     const hip = mid(pointOf(frame.lm, L_HIP, spec), pointOf(frame.lm, R_HIP, spec));
     const wrist = pointOf(frame.lm, lead, spec);
-    points.push(project(sub(wrist, hip), { ...axes, hip: { x: 0, y: 0, z: 0 } }, view));
+    points.push(project(sub(wrist, hip), { ...basis, hip: { x: 0, y: 0, z: 0 } }, view));
   }
   return points;
 }
@@ -135,6 +162,19 @@ function imagePlane(lm: Landmark[], aspect: number): Array<Pt | null> {
     if (point.v < 0.3 && index !== 0) return null;
     return { x: (point.x - hipX) * aspect, y: hipY - point.y };
   });
+}
+
+function applyCameraSign(points: Array<Pt | null> | null, sign: 1 | -1) {
+  if (!points || sign === 1) return points;
+  return points.map((point) => (point ? { x: -point.x, y: point.y } : null));
+}
+
+function cameraSign(lm: Landmark[], handedness: Side, imageSwingSign: 1 | -1): 1 | -1 {
+  const lead = lm[handedness === "right" ? L_ANK : R_ANK];
+  const back = lm[handedness === "right" ? R_ANK : L_ANK];
+  const dx = lead.x - back.x;
+  if (Math.abs(dx) >= 0.015) return dx > 0 ? 1 : -1;
+  return imageSwingSign === -1 ? -1 : 1;
 }
 
 export function measurePose(

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { measurePose, projectLandmarks, spaceSpec, toneDegree } from "./impact";
+import { measurePose, projectLandmarks, spaceSpec, swingFacing, toneDegree } from "./impact";
 import type { Landmark, PoseFrame } from "./types";
 
 function point(partial: Partial<Landmark> = {}): Landmark {
@@ -60,5 +60,41 @@ describe("impact skeleton", () => {
     assert.ok(Math.abs(measure.shoulderTurn - 90) < 8, String(measure.shoulderTurn));
     assert.equal(toneDegree(4), "good");
     assert.equal(toneDegree(30), "bad");
+  });
+
+  it("turns opposite camera sides to the same right-handed facing", () => {
+    const filmed = stance();
+    const otherSide = filmed.map((point) => ({ ...point, x: 1 - point.x, wx: -point.wx }));
+    const spec = spaceSpec([{ t: 0, lm: filmed }], 16 / 9);
+    const pairs = [
+      { lm: filmed, sign: -1 as const },
+      { lm: otherSide, sign: 1 as const },
+    ];
+    for (const item of pairs) {
+      const facing = swingFacing([{ t: 0, lm: item.lm }], "right", item.sign, spec, 0);
+      const camera = projectLandmarks(item.lm, "camera", "right", spec, facing);
+      const pitcher = projectLandmarks(item.lm, "pitcher", "right", spec, facing);
+      assert.ok(camera?.[27] && camera[28] && pitcher?.[27] && pitcher[28]);
+      assert.ok(camera[27].x > camera[28].x, JSON.stringify(camera[27]));
+      assert.ok(pitcher[27].x > pitcher[28].x, JSON.stringify(pitcher[27]));
+    }
+  });
+
+  it("keeps the pitcher direction after the feet cross in the follow-through", () => {
+    const landing = stance();
+    const follow = stance();
+    follow[27] = { ...follow[27], x: 0.32, wx: 0.05, wz: -0.3 };
+    follow[28] = { ...follow[28], x: 0.7, wx: 0.2, wz: 0.35 };
+    const frames: PoseFrame[] = [
+      { t: 0, lm: landing },
+      { t: 1, lm: follow },
+    ];
+    const spec = spaceSpec(frames, 16 / 9);
+    const facing = swingFacing(frames, "right", 1, spec, 0);
+    const locked = projectLandmarks(follow, "pitcher", "right", spec, facing);
+    const refreshed = projectLandmarks(follow, "pitcher", "right", spec);
+    assert.ok(locked?.[27] && locked[28] && refreshed?.[27] && refreshed[28]);
+    assert.ok(refreshed[27].x > refreshed[28].x);
+    assert.ok(locked[27].x < locked[28].x);
   });
 });
