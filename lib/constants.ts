@@ -55,10 +55,17 @@ export const MAX_DETECT_WIDTH: Record<ModelQuality, number> = {
   fine: 1280,
 };
 
+/** Prefix for files in public/ when the site is hosted in a subfolder. */
+export function publicPath(file: string) {
+  const base = (process.env.NEXT_PUBLIC_BASE_PATH ?? "").replace(/\/$/, "");
+  const path = file.startsWith("/") ? file : `/${file}`;
+  return `${base}${path}`;
+}
+
 export function modelAsset(quality: ModelQuality) {
-  return quality === "lite"
-    ? "/mediapipe/models/pose_landmarker_lite.task"
-    : "/mediapipe/models/pose_landmarker_full.task";
+  return publicPath(
+    quality === "lite" ? "/mediapipe/models/pose_landmarker_lite.task" : "/mediapipe/models/pose_landmarker_full.task",
+  );
 }
 
 export function rateLabel(rate: PlaybackRate) {

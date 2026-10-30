@@ -1,4 +1,4 @@
-import { MAX_DETECT_WIDTH, MAX_FRAMES, SAMPLE_FPS, modelAsset } from "./constants";
+import { MAX_DETECT_WIDTH, MAX_FRAMES, SAMPLE_FPS, modelAsset, publicPath } from "./constants";
 import type { ModelQuality, PoseFrame } from "./types";
 
 type VisionModule = typeof import("@mediapipe/tasks-vision");
@@ -20,7 +20,7 @@ export async function ensureModel(quality: ModelQuality, signal: AbortSignal) {
 
   const vision = await import("@mediapipe/tasks-vision");
   aborted(signal);
-  const fileset = await vision.FilesetResolver.forVisionTasks("/mediapipe/wasm");
+  const fileset = await vision.FilesetResolver.forVisionTasks(publicPath("/mediapipe/wasm"));
   aborted(signal);
 
   const create = (delegate: "GPU" | "CPU") =>
