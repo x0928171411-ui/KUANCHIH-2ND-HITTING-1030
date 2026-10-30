@@ -345,7 +345,7 @@ export function SwingLab() {
         <section id="impact" className="scroll-mt-6 rounded-2xl border border-dashed border-line bg-[#07111c] px-4 py-6">
           <h2 className="text-lg font-semibold text-white">擊球瞬間</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted">
-            兩支影片分析完，這裡會把擊球那一格的骨架畫出來。青色是最佳揮棒，黃色是目前這球。可以左右並排或疊在一起，也可以換視角、慢放，並在這一頁確認擊球幀。
+            兩支影片分析完，這裡會把擊球那一格的骨架畫出來。青色是最佳揮棒，黃色是目前這球。差距會拉線標在關節上。可以左右並排或疊在一起，也可以換視角、慢放，並在這一頁確認擊球幀。
           </p>
         </section>
       )}

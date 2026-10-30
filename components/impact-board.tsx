@@ -87,6 +87,7 @@ export function ImpactBoard({
   const [notes, setNotes] = useState(true);
   const [trail, setTrail] = useState(true);
   const [ground, setGround] = useState(true);
+  const [cardsOnCanvas, setCardsOnCanvas] = useState(false);
   const playingRef = useRef(false);
   const masterRef = useRef(0);
 
@@ -124,6 +125,7 @@ export function ImpactBoard({
     : null;
   const rows = liveRows(bestLive, currentLive);
   const focus = report.cards.find((card) => card.tone === "bad") ?? report.cards.find((card) => card.tone === "warn") ?? null;
+  const phaseName = nearestPhase(master, bestRead, contactBest);
   const bestSpec = useMemo(() => spaceSpec(bestFrames, best.width / best.height), [bestFrames, best.width, best.height]);
   const currentSpec = useMemo(
     () => spaceSpec(currentFrames, current.width / current.height),
@@ -193,14 +195,19 @@ export function ImpactBoard({
       }
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
+      const overlay = notes && report.cards.length > 0 && bounds.width >= 720 && bounds.height >= 380;
+      setCardsOnCanvas((value) => (value === overlay ? value : overlay));
       paintStage(ctx, width, height, {
         view,
         figures,
         trail,
         ground,
         notes,
+        overlay,
+        cards: report.cards,
         focusId: focus?.id ?? null,
-        title: Math.abs(master) < 0.04 ? "IMPACT · 擊球瞬間" : phaseTitle(master, bestRead, contactBest),
+        title: phaseHeading(phaseName),
+        badge: phaseBadge(phaseName),
         best: bestRead.ok
           ? {
               frames: bestFrames,
@@ -234,6 +241,8 @@ export function ImpactBoard({
     ground,
     notes,
     focus,
+    phaseName,
+    report.cards,
     master,
     bestRead,
     currentRead,
@@ -270,7 +279,7 @@ export function ImpactBoard({
         <div>
           <h2 className="text-lg font-semibold text-white">擊球瞬間</h2>
           <p className="mt-1 text-sm text-muted">
-            青色是最佳揮棒，黃色是目前這球。兩支同一邊的打者，前腳會畫在同一邊。
+            青色是最佳揮棒，黃色是目前這球。差距會拉線標在目前這球的關節上。
           </p>
         </div>
         <p className="font-mono text-xs text-muted">T {formatSigned(master)}</p>
@@ -287,7 +296,7 @@ export function ImpactBoard({
       ) : null}
 
       <div className="mt-4 grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="grid items-start gap-3 lg:grid-cols-[150px_minmax(0,1fr)_210px]">
+        <div className="grid items-start gap-3 lg:grid-cols-[150px_minmax(0,1fr)]">
           {notes && ready ? (
             <table className="w-full text-left text-[11px] leading-5">
               <thead>
@@ -311,19 +320,18 @@ export function ImpactBoard({
             <div className="hidden lg:block" />
           )}
 
-          <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-line bg-[#071018] lg:min-h-[420px]">
-            <canvas ref={canvasRef} className="h-full min-h-[320px] w-full lg:min-h-[420px]" />
-          </div>
-
-          {notes && report.cards.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {report.cards.map((card) => (
-                <Callout key={card.id} card={card} />
-              ))}
+          <div>
+            <div className="relative min-h-[320px] overflow-hidden rounded-xl border border-line bg-[#071018] lg:min-h-[460px]">
+              <canvas ref={canvasRef} className="h-full min-h-[320px] w-full lg:min-h-[460px]" />
             </div>
-          ) : (
-            <div className="hidden lg:block" />
-          )}
+            {notes && report.cards.length > 0 && !cardsOnCanvas ? (
+              <div className="mt-2 flex flex-col gap-2">
+                {report.cards.map((card) => (
+                  <Callout key={card.id} card={card} />
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         <FilmInset
@@ -347,7 +355,7 @@ export function ImpactBoard({
           <i className="h-2 w-2 rounded-full bg-yellow" /> 目前（你）
         </span>
         <span className="inline-flex items-center gap-1">
-          <i className="h-2 w-2 rounded-full bg-white" /> 差距最大的關節
+          <i className="h-2 w-2 rounded-full bg-white" /> 拉線標出的關節
         </span>
       </div>
 
@@ -487,7 +495,7 @@ export function ImpactBoard({
 function Callout({ card }: { card: ImpactCard }) {
   return (
     <article className={cn("rounded-lg border px-2.5 py-2 text-[11px] leading-5", toneClass(card.tone))}>
-      <p className="font-semibold">
+      <p className="font-semibold text-white">
         {card.label} · 最佳 {card.best}
       </p>
       <p>
@@ -637,6 +645,9 @@ type Figure = {
   color: string;
 };
 
+type Anchor = { x: number; y: number };
+type JointAnchors = Record<Exclude<ImpactCard["id"], "time">, Anchor | null>;
+
 function paintStage(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -647,8 +658,11 @@ function paintStage(
     trail: boolean;
     ground: boolean;
     notes: boolean;
+    overlay: boolean;
+    cards: ImpactCard[];
     focusId: ImpactCard["id"] | null;
     title: string;
+    badge: string;
     best: Figure | null;
     current: Figure | null;
   },
@@ -670,38 +684,88 @@ function paintStage(
     ctx.lineTo(width, y);
     ctx.stroke();
   }
-  ctx.fillStyle = "#d7e6f0";
-  ctx.font = `600 ${Math.round(height * 0.035)}px "WenQuanYi Micro Hei", "Microsoft JhengHei", sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText(input.title, width / 2, 12);
-  ctx.textAlign = "left";
 
+  const overlay = input.overlay && input.notes && input.cards.length > 0;
+  const stageRight = overlay ? width * 0.58 : width;
   const stacked = input.figures === "stack";
-  const slots = stacked
+  const slots: Array<{ figure: Figure | null; cx: number; who: "best" | "current" }> = stacked
     ? [
-        { figure: input.best, cx: width * 0.5 },
-        { figure: input.current, cx: width * 0.5 },
+        { figure: input.best, cx: stageRight * 0.5, who: "best" },
+        { figure: input.current, cx: stageRight * 0.5, who: "current" },
       ]
     : input.figures === "current"
-      ? [{ figure: input.current, cx: width * 0.5 }]
+      ? [{ figure: input.current, cx: stageRight * 0.5, who: "current" }]
       : input.figures === "best"
-        ? [{ figure: input.best, cx: width * 0.5 }]
+        ? [{ figure: input.best, cx: stageRight * 0.5, who: "best" }]
         : [
-            { figure: input.best, cx: width * 0.32 },
-            { figure: input.current, cx: width * 0.7 },
+            { figure: input.best, cx: stageRight * 0.36, who: "best" },
+            { figure: input.current, cx: stageRight * 0.66, who: "current" },
           ];
-  const limit = input.figures === "both" ? Math.min(width * 0.2, height * 0.42) : Math.min(width * 0.34, height * 0.44);
+  const limit = overlay
+    ? input.figures === "both"
+      ? Math.min(stageRight * 0.32, height * 0.46)
+      : Math.min(stageRight * 0.4, height * 0.48)
+    : input.figures === "both"
+      ? Math.min(width * 0.22, height * 0.42)
+      : Math.min(width * 0.34, height * 0.44);
+  const lineTarget: "best" | "current" | null =
+    input.figures === "best" ? (input.best ? "best" : null) : input.current ? "current" : input.best ? "best" : null;
+  let anchors: JointAnchors | null = null;
   for (const slot of slots) {
     if (!slot.figure) continue;
-    drawFigure(ctx, slot.figure, slot.cx, height * 0.58, limit, input, stacked ? 0.78 : 1);
+    const marked =
+      slot.who === lineTarget
+        ? markedJoints(input.cards, slot.figure.read.handedness, overlay ? null : input.focusId)
+        : new Set<number>();
+    const drawn = drawFigure(ctx, slot.figure, slot.cx, height * 0.57, limit, { ...input, marked }, stacked ? 0.78 : 1);
+    if (slot.who === lineTarget && drawn) anchors = drawn;
   }
   if (!input.best && !input.current) {
     ctx.fillStyle = "#9eb3c6";
-    ctx.font = `500 ${Math.round(height * 0.04)}px "WenQuanYi Micro Hei", "Microsoft JhengHei", sans-serif`;
+    ctx.font = `500 ${Math.round(height * 0.04)}px ${CANVAS_FONT}`;
     ctx.textAlign = "center";
     ctx.fillText("骨架不夠，沒辦法畫出人形。", width / 2, height / 2);
   }
+  const headingBottom = paintHeading(ctx, width, height, input.title, input.badge, stageRight);
+  if (overlay && anchors) drawCallouts(ctx, width, height, input.cards, anchors, headingBottom);
+}
+
+const CANVAS_FONT = '"WenQuanYi Micro Hei", "Microsoft JhengHei", "PingFang TC", sans-serif';
+
+function paintHeading(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  title: string,
+  badge: string,
+  stageRight: number,
+) {
+  const fontSize = Math.round(Math.max(15, Math.min(32, height * 0.04)));
+  const titleY = Math.max(14, height * 0.03);
+  ctx.font = `600 ${fontSize}px ${CANVAS_FONT}`;
+  ctx.fillStyle = "#d7e6f0";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const titleX = stageRight / 2;
+  ctx.fillText(title, titleX, titleY);
+  const titleWidth = ctx.measureText(title).width;
+  const underlineY = titleY + fontSize + 6;
+  ctx.strokeStyle = "#e6c36a";
+  ctx.lineWidth = Math.max(1.5, height * 0.0022);
+  ctx.beginPath();
+  ctx.moveTo(titleX - titleWidth / 2, underlineY);
+  ctx.lineTo(titleX + titleWidth / 2, underlineY);
+  ctx.stroke();
+  ctx.font = `600 ${Math.round(fontSize * 0.92)}px ${CANVAS_FONT}`;
+  const badgeWidth = ctx.measureText(badge).width;
+  const gutter = Math.max(14, width * 0.014);
+  if (badge && titleX + titleWidth / 2 + 18 < width - gutter - badgeWidth) {
+    ctx.textAlign = "right";
+    ctx.fillStyle = "#e8f2f8";
+    ctx.fillText(badge, width - gutter, titleY);
+  }
+  ctx.textAlign = "left";
+  return underlineY + Math.max(12, height * 0.02);
 }
 
 function drawFigure(
@@ -710,15 +774,15 @@ function drawFigure(
   cx: number,
   cy: number,
   limit: number,
-  input: { view: ImpactView; trail: boolean; ground: boolean; focusId: ImpactCard["id"] | null },
+  input: { view: ImpactView; trail: boolean; ground: boolean; marked: Set<number> },
   opacity = 1,
-) {
+): JointAnchors | null {
   const frame = frameAt(figure.frames, figure.time);
   const points = projectLandmarks(frame?.lm ?? null, input.view, figure.read.handedness, figure.spec, figure.facing);
-  if (!points) return;
+  if (!points) return null;
   const hip = mid2(points[23], points[24]);
   const sho = mid2(points[11], points[12]);
-  if (!hip || !sho) return;
+  if (!hip || !sho) return null;
   const torso = Math.hypot(sho.x - hip.x, sho.y - hip.y) || 0.4;
   let scale = (limit * 0.85) / torso;
   let maxReach = 0.001;
@@ -804,13 +868,12 @@ function drawFigure(
     ctx.stroke();
   }
   ctx.globalAlpha = opacity;
-  const focus = new Set(problemJoints(input.focusId, figure.read.handedness));
   for (const index of [0, 11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]) {
     const point = points[index];
     if (!point) continue;
     const at = map(point);
     const lead = index !== 0 && (index % 2 === 1) === leadLeft;
-    const marked = focus.has(index);
+    const marked = input.marked.has(index);
     ctx.beginPath();
     ctx.fillStyle = marked ? "#ffffff" : lead ? "#ffffff" : figure.color;
     ctx.arc(at.x, at.y, marked ? 7 : lead ? 5 : 3.5, 0, Math.PI * 2);
@@ -824,6 +887,144 @@ function drawFigure(
     }
   }
   ctx.globalAlpha = 1;
+  const leadKnee = figure.read.handedness === "right" ? 25 : 26;
+  return {
+    sho: map(sho),
+    hip: map(hip),
+    head: nose ? map(nose) : null,
+    knee: points[leadKnee] ? map(points[leadKnee]) : null,
+  };
+}
+
+const CARD_RANK: Record<ImpactCard["id"], number> = { knee: 0, sho: 1, hip: 2, head: 3, time: 4 };
+
+function drawCallouts(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  cards: ImpactCard[],
+  anchors: JointAnchors,
+  top: number,
+) {
+  const list = [...cards].sort((a, b) => CARD_RANK[a.id] - CARD_RANK[b.id]);
+  if (!list.length) return;
+  const gutter = Math.max(12, width * 0.012);
+  const cardW = Math.max(160, width - width * 0.58 - gutter * 2);
+  const x = width - cardW - gutter;
+  const padX = Math.max(10, cardW * 0.04);
+  const padY = Math.max(8, height * 0.012);
+  const titleSize = Math.round(Math.max(13, Math.min(26, height * 0.028)));
+  const bodySize = Math.round(titleSize * 0.92);
+  const inner = cardW - padX * 2;
+  const laid = list.map((card) => {
+    const copy = cardCopy(card);
+    ctx.font = `600 ${titleSize}px ${CANVAS_FONT}`;
+    const headLines = wrapText(ctx, copy.head, inner);
+    ctx.font = `500 ${bodySize}px ${CANVAS_FONT}`;
+    const bodyLines = wrapText(ctx, copy.body, inner);
+    const h = padY + headLines.length * (titleSize + 4) + 4 + bodyLines.length * (bodySize + 4) + padY;
+    return { card, headLines, bodyLines, h };
+  });
+  const gap = Math.max(6, height * 0.01);
+  const total = laid.reduce((sum, item) => sum + item.h, 0) + gap * Math.max(0, laid.length - 1);
+  let cursor = top;
+  if (cursor + total > height - gutter) cursor = Math.max(gutter, height - gutter - total);
+  const placed = laid.map((item) => {
+    const y = cursor;
+    cursor += item.h + gap;
+    return { ...item, y };
+  });
+
+  ctx.save();
+  ctx.lineCap = "round";
+  for (const item of placed) {
+    const anchor = item.card.id === "time" ? null : anchors[item.card.id];
+    if (!anchor) continue;
+    const paint = tonePaint(item.card.tone);
+    const midY = item.y + item.h / 2;
+    ctx.beginPath();
+    ctx.strokeStyle = paint.line;
+    ctx.globalAlpha = 0.95;
+    ctx.lineWidth = Math.max(1.6, height * 0.0022);
+    ctx.moveTo(anchor.x, anchor.y);
+    ctx.lineTo(x, midY);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.fillStyle = "#ffffff";
+    ctx.arc(anchor.x, anchor.y, Math.max(4.2, height * 0.007), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.strokeStyle = paint.line;
+    ctx.lineWidth = Math.max(2, height * 0.003);
+    ctx.arc(anchor.x, anchor.y, Math.max(8, height * 0.013), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  for (const item of placed) {
+    const paint = tonePaint(item.card.tone);
+    ctx.beginPath();
+    ctx.fillStyle = paint.fill;
+    ctx.strokeStyle = paint.border;
+    ctx.lineWidth = Math.max(1.5, height * 0.002);
+    ctx.roundRect(x, item.y, cardW, item.h, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    let textY = item.y + padY;
+    ctx.font = `600 ${titleSize}px ${CANVAS_FONT}`;
+    ctx.fillStyle = paint.title;
+    for (const line of item.headLines) {
+      ctx.fillText(line, x + padX, textY);
+      textY += titleSize + 4;
+    }
+    textY += 2;
+    ctx.font = `500 ${bodySize}px ${CANVAS_FONT}`;
+    ctx.fillStyle = paint.text;
+    for (const line of item.bodyLines) {
+      ctx.fillText(line, x + padX, textY);
+      textY += bodySize + 4;
+    }
+  }
+  ctx.restore();
+}
+
+function cardCopy(card: ImpactCard) {
+  const showDelta = card.delta !== "0°" && card.delta !== "0 毫秒" && card.delta !== "—";
+  return {
+    head: `${card.label} · 最佳 ${card.best}`,
+    body: `目前 ${card.current}${showDelta ? ` ${card.delta}` : ""} → ${card.advice}${card.tone === "good" ? " ✓" : ""}`,
+  };
+}
+
+function wrapText(ctx: CanvasRenderingContext2D, text: string, maxWidth: number) {
+  const lines: string[] = [];
+  let line = "";
+  for (const ch of text) {
+    const next = line + ch;
+    if (line && ctx.measureText(next).width > maxWidth) {
+      lines.push(line);
+      line = ch;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  return lines.slice(0, 3);
+}
+
+function tonePaint(tone: ImpactCard["tone"]) {
+  if (tone === "good") return { border: "#3dbe78", fill: "rgba(12, 36, 26, 0.94)", text: "#8ee0b0", line: "#3dbe78", title: "#f4fbf7" };
+  if (tone === "warn") return { border: "#e0b15a", fill: "rgba(42, 34, 15, 0.94)", text: "#ffc14a", line: "#e0b15a", title: "#fff8ea" };
+  return { border: "#e07080", fill: "rgba(48, 16, 24, 0.94)", text: "#ff9aa4", line: "#ff7d8c", title: "#fff5f6" };
+}
+
+function markedJoints(cards: ImpactCard[], handedness: Side, only: ImpactCard["id"] | null) {
+  const set = new Set<number>();
+  for (const card of cards) {
+    if (only && card.id !== only) continue;
+    if (card.id === "time") continue;
+    for (const index of problemJoints(card.id, handedness)) set.add(index);
+  }
+  return set;
 }
 
 function problemJoints(id: ImpactCard["id"] | null, handedness: Side) {
@@ -839,8 +1040,8 @@ function mid2(a: { x: number; y: number } | null, b: { x: number; y: number } | 
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-function phaseTitle(master: number, read: SwingRead, contact: number) {
-  if (!read.ok) return "擊球瞬間";
+function nearestPhase(master: number, read: SwingRead, contact: number) {
+  if (Math.abs(master) < 0.04 || !read.ok) return "擊球瞬間";
   const phases: Array<[string, number]> = [
     ["準備", Math.max(0, read.phases.load - 0.4) - contact],
     ["著地", read.phases.landing - contact],
@@ -850,6 +1051,21 @@ function phaseTitle(master: number, read: SwingRead, contact: number) {
   ];
   phases.sort((a, b) => Math.abs(a[1] - master) - Math.abs(b[1] - master));
   return phases[0][0];
+}
+
+function phaseHeading(name: string) {
+  const prefix: Record<string, string> = {
+    準備: "READY",
+    著地: "LAND",
+    啟動: "LOAD",
+    擊球瞬間: "IMPACT",
+    收尾: "FINISH",
+  };
+  return `${prefix[name] ?? "SWING"} · ${name}`;
+}
+
+function phaseBadge(name: string) {
+  return name === "擊球瞬間" ? "擊球" : name;
 }
 
 function toneClass(tone: ImpactTone) {
